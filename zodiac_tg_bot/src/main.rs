@@ -1,8 +1,11 @@
 use teloxide::prelude::*;
+use dotenv::dotenv;
+// dotenv().ok();
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv().ok();
 
     let bot = Bot::from_env().auto_send();
 
