@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-teloxide = "0.9"
-tokio = { version = "1.7", features = ["full"] }
+teloxide = { version = "0.12", features = ["macros"] }
+log = "0.4"
+pretty_env_logger = "0.4"
+tokio = { version = "1.8", features = ["rt-multi-thread", "macros"] }
 dotenv = "0.15.0"
