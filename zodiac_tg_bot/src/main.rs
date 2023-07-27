@@ -22,7 +22,6 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 struct QuestionsHolder(Vec<&'static str>);
 
 // lazy_static! {
-//     // Создаем статическую переменную с типом Mutex<QuestionsHolder>
 //     static QUESTIONS: &[&'static str] = &[
 //     "Question 1: What is 2 + 2?",
 //     "Question 2: What is the capital of France?",
@@ -104,13 +103,10 @@ async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerRe
 
         teloxide::repl(cloned_bot, move |message: Message, bot: AutoSend<Bot>| async move {
             bot.send_message(msg.chat.id, question.to_string()).await;
-            // There are non-text messages, so we need to use pattern matching
             if let Some(text) = message.text() {
-                // Echo text back into the chat
                 bot.send_message(message.chat.id, "hi").await?;
             }
         
-            // respond is an alias to `Ok()` with a error type compatible with teloxide
             respond(())
         }).await;
         
@@ -122,7 +118,6 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
     if let Some(text) = msg.text() {
         match BotCommands::parse(text, me.username()) {
             Ok(Command::Help) => {
-                // Just send the description of all commands.
                 bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?;
             }
 
