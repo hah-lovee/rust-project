@@ -3,9 +3,8 @@ use teloxide::{types::Message, Bot};
 use teloxide::types::Me;
 use teloxide::utils::command::BotCommands;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
-
-use dotenv::dotenv;
-
+use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -50,10 +49,13 @@ pub enum State {
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    let token = dotenvy::var("TELOXIDE_TOKEN").unwrap();
 
 
     let bot = Bot::from_env();
+
+    let notifys: Store = Arc::new(Mutex::new(HashMap::new()));
+
 
     println!("Starting...");
 
@@ -61,8 +63,8 @@ async fn main() {
         .enter_dialogue::<Message, InMemStorage<State>, State>()
         .branch(dptree::case![State::Start].endpoint(command_handler))
         .branch(dptree::case![State::Test].endpoint(test_handler))
-        .branch(dptree::case![State::CheckAnswer].endpoint(check_answer))
         ;
+
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
@@ -74,29 +76,23 @@ async fn main() {
 }
 
 async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
-    println!("Entered test_handler");
-    unsafe {
-    println!("asking question: {}", QUESTIONS[CURRENT_INDEX]);
 
-    bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
-        .await
-        .unwrap();
+
+    for &question in QUESTIONS {
+        let cloned_bot = bot.clone();
+
+        teloxide::repl(cloned_bot, move |message: Message, bot: AutoSend<Bot>| async move {
+            bot.send_message(msg.chat.id, question.to_string()).await;
+            // There are non-text messages, so we need to use pattern matching
+            if let Some(text) = message.text() {
+                // Echo text back into the chat
+                bot.send_message(message.chat.id, "hi").await?;
+            }
         
-    }
-    dialogue.update(State::CheckAnswer).await?;
-
-    
-    
-    Ok(())
-}
-
-async fn check_answer(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
-
-    println!("got answer: {}", msg.text().unwrap());
-    if let Some(text) = msg.text() {
-        unsafe {CURRENT_INDEX +=1; }
-
-        bot.send_message(msg.chat.id, "засчитано!".to_string()).await;
+            // respond is an alias to `Ok()` with a error type compatible with teloxide
+            respond(())
+        }).await;
+        
     }
 
     dialogue.update(State::Test).await?;
@@ -114,8 +110,9 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
 
             Ok(Command::Test) => {
                 dialogue.update(State::Test).await?;
+                
+                bot.send_message(msg.chat.id, "test".to_string()).await?;
 
-                bot.send_message(msg.chat.id, "введите ваш пол (м/ж)".to_string()).await?;
             }
 
             Ok(Command::Start) => {
