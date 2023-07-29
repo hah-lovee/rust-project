@@ -1,38 +1,23 @@
-use teloxide::{Bot, types::Message};
-use tokio::time::sleep;
-
-use lazy_static::lazy_static;
-
-use std::sync::Mutex as std_Mutex;
-use std::time::Duration;
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use dotenv::dotenv;
+use teloxide::{types::Message, Bot};
 
 use teloxide::types::Me;
 use teloxide::utils::command::BotCommands;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
+
+use dotenv::dotenv;
+
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 struct QuestionsHolder(Vec<&'static str>);
 
-// lazy_static! {
-//     // Создаем статическую переменную с типом Mutex<QuestionsHolder>
-//     static QUESTIONS: &[&'static str] = &[
-//     "Question 1: What is 2 + 2?",
-//     "Question 2: What is the capital of France?",
-// ]   ));
-// }
-
-static QUESTIONS: &[&'static str] = &[
+const QUESTIONS: &[&'static str] = &[
     "Question 1: What is 2 + 2?",
     "Question 2: What is the capital of France?",
 ];
+
+static mut CURRENT_INDEX: usize = 0;
 
 #[derive(Debug)]
 pub enum TaskCommand {
@@ -41,9 +26,11 @@ pub enum TaskCommand {
     Delete,
 }
 
-
 #[derive(BotCommands, Clone)]
-#[command(rename_rule = "lowercase", description = "These commands are supported:")]
+#[command(
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
+)]
 enum Command {
     #[command(description = "выводит приведственные слова")]
     Start,
@@ -51,8 +38,6 @@ enum Command {
     Help,
     #[command(description = "Start the test.")]
     Test,
-
-
 }
 
 #[derive(Clone, Default)]
@@ -60,10 +45,8 @@ pub enum State {
     #[default]
     Start,
     Test,
+    CheckAnswer,
 }
-
-pub type Store = Arc<Mutex<HashMap<String, Sender<TaskCommand>>>>;
-
 
 #[tokio::main]
 async fn main() {
@@ -72,49 +55,52 @@ async fn main() {
 
     let bot = Bot::from_env();
 
-    let notifys: Store = Arc::new(Mutex::new(HashMap::new()));
-
-
     println!("Starting...");
 
     let handler = Update::filter_message()
         .enter_dialogue::<Message, InMemStorage<State>, State>()
         .branch(dptree::case![State::Start].endpoint(command_handler))
         .branch(dptree::case![State::Test].endpoint(test_handler))
+        .branch(dptree::case![State::CheckAnswer].endpoint(check_answer))
         ;
 
-
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![InMemStorage::<State>::new(), notifys])
+        .dependencies(dptree::deps![InMemStorage::<State>::new()])
         // .dependencies(dptree::deps![InMemStorage::<Store>::new()])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
-
 }
 
-
-
 async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
+    println!("Entered test_handler");
+    unsafe {
+    println!("asking question: {}", QUESTIONS[CURRENT_INDEX]);
 
-
-    for &question in QUESTIONS {
-        let cloned_bot = bot.clone();
-
-        teloxide::repl(cloned_bot, move |message: Message, bot: AutoSend<Bot>| async move {
-            bot.send_message(msg.chat.id, question.to_string()).await;
-            // There are non-text messages, so we need to use pattern matching
-            if let Some(text) = message.text() {
-                // Echo text back into the chat
-                bot.send_message(message.chat.id, "hi").await?;
-            }
-        
-            // respond is an alias to `Ok()` with a error type compatible with teloxide
-            respond(())
-        }).await;
+    bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
+        .await
+        .unwrap();
         
     }
+    dialogue.update(State::CheckAnswer).await?;
+
+    
+    
+    Ok(())
+}
+
+async fn check_answer(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
+
+    println!("got answer: {}", msg.text().unwrap());
+    if let Some(text) = msg.text() {
+        unsafe {CURRENT_INDEX +=1; }
+
+        bot.send_message(msg.chat.id, "засчитано!".to_string()).await;
+    }
+
+    dialogue.update(State::Test).await?;
+
     Ok(())
 }
 
@@ -122,20 +108,19 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
     if let Some(text) = msg.text() {
         match BotCommands::parse(text, me.username()) {
             Ok(Command::Help) => {
-                // Just send the description of all commands.
-                bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?;
+                bot.send_message(msg.chat.id, Command::descriptions().to_string())
+                    .await?;
             }
 
             Ok(Command::Test) => {
                 dialogue.update(State::Test).await?;
-                
-                bot.send_message(msg.chat.id, "test".to_string()).await?;
 
+                bot.send_message(msg.chat.id, "введите ваш пол (м/ж)".to_string()).await?;
             }
 
             Ok(Command::Start) => {
                 bot.send_message(msg.chat.id, "start".to_string()).await?;
-
+                // dialogue.update(State::Test).await?;
             }
 
             Err(_) => {
