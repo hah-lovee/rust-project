@@ -1,10 +1,9 @@
-use teloxide::{types::Message, Bot};
-
-use teloxide::types::Me;
+use teloxide::{types::{Message, Me}, Bot};
 use teloxide::utils::command::BotCommands;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
 
 use dotenv::dotenv;
+
 
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
@@ -13,7 +12,7 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 const QUESTIONS: &[&'static str] = &[
     "Question 1: What is 2 + 2?",
-    "Question 2: What is the capital of France?",
+    "Question 2: enter a number from 1 to 5",
     "Question 3: enter a number from 1 to 5",
     "Question 4: enter a number from 1 to 5",
     "Question 5: enter a number from 1 to 5",
@@ -80,31 +79,47 @@ async fn main() {
 async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
 
     println!("got answer: {}", msg.text().unwrap());
-    // Сделать обработку ответа
-    if let Some(text) = msg.text() {
-
-        bot.send_message(msg.chat.id, "засчитано!".to_string()).await.unwrap();
-    }
     
-    unsafe {
-        // Здесь в бдшку запрос на отправку должен быть
-        if CURRENT_INDEX + 1 >= QUESTIONS.len() {
-            bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
-            CURRENT_INDEX = 0;
-            dialogue.update(State::Start).await?;
+    if let Some(text) = msg.text() {
+        if text.chars().count() > 1 {
+            bot.send_message(msg.chat.id, "try digit from 1 to 5.".to_string()).await.unwrap();
 
         } else {
 
-            CURRENT_INDEX += 1;
-            bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
-                    .await
-                    .unwrap();
+            if let Some(digit_char) = text.chars().find(|c| c.is_digit(6)) {
+            // Преобразуем символ цифры в числовой тип
+                if let Some(digit) = digit_char.to_digit(6) {
+                    println!("Found digit: {}", digit);
+                    if digit != 0 {
+                        unsafe {
+                    // Здесь в бдшку запрос на отправку должен быть + vec.clean()
+                            if CURRENT_INDEX + 1 >= QUESTIONS.len() {
+                                bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
+                                CURRENT_INDEX = 0;
+                                dialogue.update(State::Start).await?;
+                    
+                            } else {
+                                //  vec.push(digit)
+                                CURRENT_INDEX += 1;
+                                bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
+                                        .await
+                                        .unwrap();
+                            }
+                        }
+                    } else {
+                        bot.send_message(msg.chat.id, "try digit from 1 to 5.".to_string()).await.unwrap();
+                    }
+                } else {                    
+                    bot.send_message(msg.chat.id, "try digit from 1 to 5.".to_string()).await.unwrap();
+                }     
+            } else {
+                bot.send_message(msg.chat.id, "try digit from 1 to 5.".to_string()).await.unwrap();
+            }
         }
-    
-
     }
     Ok(())
 }
+
 
 async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -> HandlerResult {
     if let Some(text) = msg.text() {
@@ -137,6 +152,5 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
             }
         }
     }
-
     Ok(())
 }
