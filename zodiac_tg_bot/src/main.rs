@@ -1,6 +1,10 @@
+use std::sync::Mutex;
+
 use teloxide::{types::{Message, Me}, Bot};
 use teloxide::utils::command::BotCommands;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
+
+use sqlx::{Connection, Row};
 
 use dotenv::dotenv;
 
@@ -25,6 +29,12 @@ const QUESTIONS: &[&'static str] = &[
 ];
 
 static mut CURRENT_INDEX: usize = 0;
+
+// lazy_static::lazy_static! {
+//     static ref GLOBAL_VECTOR: M<Vec<u8>> = M::new(Vec::new());
+// }
+
+static mut GLOBAL_VECTOR: Option<Mutex<Vec<u8>>> = None;
 
 
 #[derive(BotCommands, Clone)]
@@ -53,6 +63,10 @@ async fn main() {
     dotenv().ok();
 
     let bot = Bot::from_env();
+
+    unsafe {
+        GLOBAL_VECTOR = Some(Mutex::new(Vec::new()));
+    }
 
     println!("Starting...");
 
@@ -85,15 +99,28 @@ async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerRe
                 if let Some(digit) = digit_char.to_digit(6) {
                     println!("Found digit: {}", digit);
                     if digit != 0 {
+                        let digit = digit as u8;
                         unsafe {
                     // Здесь в бдшку запрос на отправку должен быть + vec.clean()
                             if CURRENT_INDEX + 1 >= QUESTIONS.len() {
                                 bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
+                                unsafe {
+                                    if let Some(ref global_vector) = GLOBAL_VECTOR {
+                                        let mut vector = global_vector.lock().unwrap();
+                                        vector.push(digit);
+                                        println!("{:?}", *vector);
+                                        vector.clear();
+                                    }
+                                }
                                 CURRENT_INDEX = 0;
                                 dialogue.update(State::Start).await?;
                     
                             } else {
                                 //  vec.push(digit)
+                                if let Some(ref global_vector) = GLOBAL_VECTOR {
+                                    let mut vector = global_vector.lock().unwrap();
+                                    vector.push(digit);
+                                }
                                 CURRENT_INDEX += 1;
                                 bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
                                         .await
