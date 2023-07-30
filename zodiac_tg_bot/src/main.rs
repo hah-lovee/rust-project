@@ -10,11 +10,19 @@ use dotenv::dotenv;
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
-struct QuestionsHolder(Vec<&'static str>);
 
 const QUESTIONS: &[&'static str] = &[
     "Question 1: What is 2 + 2?",
     "Question 2: What is the capital of France?",
+    "Question 3: enter a number from 1 to 5",
+    "Question 4: enter a number from 1 to 5",
+    "Question 5: enter a number from 1 to 5",
+    "Question 6: enter a number from 1 to 5",
+    "Question 7: enter a number from 1 to 5",
+    "Question 8: enter a number from 1 to 5",
+    "Question 9: enter a number from 1 to 5",
+    "Question 10: enter a number from 1 to 5",
+
 ];
 
 static mut CURRENT_INDEX: usize = 0;
@@ -45,13 +53,11 @@ pub enum State {
     #[default]
     Start,
     Test,
-    CheckAnswer,
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-
 
     let bot = Bot::from_env();
 
@@ -60,52 +66,39 @@ async fn main() {
     let handler = Update::filter_message()
         .enter_dialogue::<Message, InMemStorage<State>, State>()
         .branch(dptree::case![State::Start].endpoint(command_handler))
-        .branch(dptree::case![State::Test].endpoint(test_handler))
-        .branch(dptree::case![State::CheckAnswer].endpoint(check_answer))
-        ;
+        .branch(dptree::case![State::Test].endpoint(test_handler));
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
-        // .dependencies(dptree::deps![InMemStorage::<Store>::new()])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
 }
 
+
 async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
-    println!("Entered test_handler");
-    unsafe {
-    println!("asking question: {}", QUESTIONS[CURRENT_INDEX]);
-
-    bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
-        .await
-        .unwrap();
-        
-    }
-    dialogue.update(State::CheckAnswer).await?;
-
-    
-    
-    Ok(())
-}
-
-async fn check_answer(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
 
     println!("got answer: {}", msg.text().unwrap());
+    // Сделать обработку ответа
     if let Some(text) = msg.text() {
 
-        bot.send_message(msg.chat.id, "засчитано!".to_string()).await;
+        bot.send_message(msg.chat.id, "засчитано!".to_string()).await.unwrap();
     }
     
     unsafe {
+        // Здесь в бдшку запрос на отправку должен быть
         if CURRENT_INDEX + 1 >= QUESTIONS.len() {
-            bot.send_message(msg.chat.id, "тест окончен".to_string()).await;
+            bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
+            CURRENT_INDEX = 0;
             dialogue.update(State::Start).await?;
 
         } else {
-            dialogue.update(State::Test).await?;
-            CURRENT_INDEX += 1
+
+            CURRENT_INDEX += 1;
+            bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
+                    .await
+                    .unwrap();
         }
     
 
@@ -123,12 +116,19 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
 
             Ok(Command::Test) => {
                 dialogue.update(State::Test).await?;
+                let message = "Убедительная просьба отвечать только числами от 1 до 5.";
+                bot.send_message(msg.chat.id, message.to_string()).await?;
+                unsafe { 
+                    bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
+                    .await
+                    .unwrap();
+                }
 
-                bot.send_message(msg.chat.id, "введите ваш пол (м/ж)".to_string()).await?;
             }
 
             Ok(Command::Start) => {
-                bot.send_message(msg.chat.id, "start".to_string()).await?;
+                let message = "start";
+                bot.send_message(msg.chat.id, message.to_string()).await?;
                 // dialogue.update(State::Test).await?;
             }
 
