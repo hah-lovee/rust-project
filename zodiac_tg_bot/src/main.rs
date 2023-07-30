@@ -1,10 +1,13 @@
 use std::sync::Mutex;
+use std::env;
+
+use sqlx::postgres::PgPool;
+use sqlx::Pool;
+use sqlx::query;
 
 use teloxide::{types::{Message, Me}, Bot};
 use teloxide::utils::command::BotCommands;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
-
-use sqlx::{Connection, Row};
 
 use dotenv::dotenv;
 
@@ -30,11 +33,7 @@ const QUESTIONS: &[&'static str] = &[
 
 static mut CURRENT_INDEX: usize = 0;
 
-// lazy_static::lazy_static! {
-//     static ref GLOBAL_VECTOR: M<Vec<u8>> = M::new(Vec::new());
-// }
-
-static mut GLOBAL_VECTOR: Option<Mutex<Vec<u8>>> = None;
+static mut GLOBAL_VECTOR: Option<Mutex<Vec<i8>>> = None;
 
 
 #[derive(BotCommands, Clone)]
@@ -59,8 +58,10 @@ pub enum State {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), sqlx::Error> {
     dotenv().ok();
+
+    
 
     let bot = Bot::from_env();
 
@@ -81,6 +82,8 @@ async fn main() {
         .build()
         .dispatch()
         .await;
+
+    Ok(())
 }
 
 
@@ -99,24 +102,26 @@ async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerRe
                 if let Some(digit) = digit_char.to_digit(6) {
                     println!("Found digit: {}", digit);
                     if digit != 0 {
-                        let digit = digit as u8;
+                        let digit = digit as i8;
                         unsafe {
                     // Здесь в бдшку запрос на отправку должен быть + vec.clean()
                             if CURRENT_INDEX + 1 >= QUESTIONS.len() {
                                 bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
-                                unsafe {
-                                    if let Some(ref global_vector) = GLOBAL_VECTOR {
-                                        let mut vector = global_vector.lock().unwrap();
-                                        vector.push(digit);
-                                        println!("{:?}", *vector);
-                                        vector.clear();
-                                    }
+                                
+                                if let Some(ref global_vector) = GLOBAL_VECTOR {
+                                    let mut vector = global_vector.lock().unwrap();
+                                    vector.push(digit);
+                                    println!("{:?}", *vector);
+
+                                    insert_values().await?;
+
+                                    vector.clear();
+                                    
                                 }
                                 CURRENT_INDEX = 0;
                                 dialogue.update(State::Start).await?;
                     
                             } else {
-                                //  vec.push(digit)
                                 if let Some(ref global_vector) = GLOBAL_VECTOR {
                                     let mut vector = global_vector.lock().unwrap();
                                     vector.push(digit);
@@ -172,6 +177,47 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
                 bot.send_message(msg.chat.id, "Command not found!").await?;
             }
         }
+    }
+    Ok(())
+}
+
+async fn insert_values() -> Result<(), sqlx::Error> {
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL not set");
+
+    let pool = PgPool::connect(&db_url).await?;
+
+    unsafe{
+        if let Some(ref global_vector) = GLOBAL_VECTOR {
+            let mut vector = global_vector.lock().unwrap();
+
+            let first_q = vector[0];
+            let second_q = vector[1];
+            let third_q = vector[2];
+            let fourth_q = vector[3];
+            let fifth_q = vector[4];
+            let sixth_q = vector[5];
+            let seventh_q = vector[6];
+            let eighth_q = vector[7];
+            let ninth_q = vector[8];
+            let tenth_q = vector[9];
+
+            let query = "INSERT INTO test (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
+            sqlx::query(query)
+                .bind(first_q)
+                .bind(second_q)
+                .bind(third_q)
+                .bind(fourth_q)
+                .bind(fifth_q)
+                .bind(sixth_q)
+                .bind(seventh_q)
+                .bind(eighth_q)
+                .bind(ninth_q)
+                .bind(tenth_q)
+                .execute(&pool)
+                .await?;
+            
+        }   
     }
     Ok(())
 }
