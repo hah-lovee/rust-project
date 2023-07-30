@@ -26,12 +26,6 @@ const QUESTIONS: &[&'static str] = &[
 
 static mut CURRENT_INDEX: usize = 0;
 
-#[derive(Debug)]
-pub enum TaskCommand {
-    Enable,
-    Disable,
-    Delete,
-}
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -81,13 +75,13 @@ async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerRe
     println!("got answer: {}", msg.text().unwrap());
     
     if let Some(text) = msg.text() {
+
         if text.chars().count() > 1 {
             bot.send_message(msg.chat.id, "try digit from 1 to 5.".to_string()).await.unwrap();
-
         } else {
 
             if let Some(digit_char) = text.chars().find(|c| c.is_digit(6)) {
-            // Преобразуем символ цифры в числовой тип
+
                 if let Some(digit) = digit_char.to_digit(6) {
                     println!("Found digit: {}", digit);
                     if digit != 0 {
