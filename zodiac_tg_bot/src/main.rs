@@ -41,7 +41,7 @@ static mut GLOBAL_VECTOR: Option<Mutex<Vec<i8>>> = None;
     description = "These commands are supported:"
 )]
 enum Command {
-    #[command(description = "выводит приведственные слова")]
+    #[command(description = "outputs welcome words")]
     Start,
     #[command(description = "display this text.")]
     Help,
@@ -59,8 +59,6 @@ pub enum State {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-
-    
 
     let bot = Bot::from_env();
 
@@ -102,9 +100,9 @@ async fn test_handler(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerRe
                     if digit != 0 {
                         let digit = digit as i8;
                         unsafe {
-                    // Здесь в бдшку запрос на отправку должен быть + vec.clean()
+
                             if CURRENT_INDEX + 1 >= QUESTIONS.len() {
-                                bot.send_message(msg.chat.id, "тест окончен".to_string()).await.unwrap();
+                                bot.send_message(msg.chat.id, "the test is over".to_string()).await.unwrap();
                                 
                                 if let Some(ref global_vector) = GLOBAL_VECTOR {
                                     let mut vector = global_vector.lock().unwrap();
@@ -167,7 +165,7 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
 
             Ok(Command::Test) => {
                 dialogue.update(State::Test).await?;
-                let message = "Убедительная просьба отвечать только числами от 1 до 5.";
+                let message = "We kindly ask you to answer only with numbers from 1 to 5.";
                 bot.send_message(msg.chat.id, message.to_string()).await?;
                 unsafe { 
                     bot.send_message(msg.chat.id, QUESTIONS[CURRENT_INDEX].to_string())
@@ -178,7 +176,7 @@ async fn command_handler(bot: Bot, msg: Message, dialogue: MyDialogue, me: Me) -
             }
 
             Ok(Command::Start) => {
-                let message = "start";
+                let message = "Hi! try to pass my test. For more information, click on /help";
                 bot.send_message(msg.chat.id, message.to_string()).await?;
             }
 
